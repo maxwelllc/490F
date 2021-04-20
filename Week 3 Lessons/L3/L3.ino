@@ -10,9 +10,9 @@ void loop() {
   // put your main code here, to run repeatedly:
 
   digitalWrite(LED_OUTPUT_PIN, HIGH);
-  Serial.print("LED on Pin 3 is high");
+  Serial.println("LED on Pin 3 is high");
   delay(1000);
   digitalWrite(LED_OUTPUT_PIN, LOW);
-  Serial.print("LED on Pin 3 is low");
+  Serial.println("LED on Pin 3 is low");
   delay(1000);
 }
