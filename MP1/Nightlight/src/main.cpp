@@ -25,6 +25,13 @@ float hue = 0;
 float step = 0.001f;
 RGBConverter rgbConverter;
 
+// Arbitrary thresholds for plantHealth()
+// TODO calibrate later
+const int lightMax = 200;
+const int lightMin = 50;
+const int waterMax = 200;
+const int waterMin = 50;
+
 byte savedRGB[3] = {0, 0, 0};
 boolean lockRGB = false;
 
@@ -60,14 +67,27 @@ void setup()
   pinMode(MODE_SWITCH_LED, OUTPUT);
   pinMode(AUX_BUTTON, INPUT);
   pinMode(AUX_LED, OUTPUT);
-
 }
 
 void loop()
 {
-  if(cs1Threshold < 50 || cs2Threshold < 50) {
+  // Need to calibrate touch on first run, the <50 check is to ensure the calibration didn't run and
+  // set an unreasonably low value
+  if (cs1Threshold < 50 || cs2Threshold < 50)
+  {
     calibrateTouch();
     return;
+  }
+
+  // When we are on the locked mode, light up the button for some feedback!
+  // Note that locking doesn't actually do anything in plantHealth() mode
+  if (lockRGB)
+  {
+    digitalWrite(AUX_LED, HIGH);
+  }
+  else
+  {
+    digitalWrite(AUX_LED, LOW);
   }
 
   int modeButtonVal = digitalRead(MODE_SWITCH_BUTTON);
@@ -76,8 +96,7 @@ void loop()
   int modeButtonVal2 = digitalRead(MODE_SWITCH_BUTTON);
   int saveButtonVal2 = digitalRead(AUX_BUTTON);
 
-
-  
+  // Increment mode on mode button press
   if (modeButtonVal == HIGH && modeButtonVal == modeButtonVal2)
   {
     state++;
@@ -87,6 +106,7 @@ void loop()
     }
   }
 
+  // Toggle lock state on AUX button press
   if (saveButtonVal == HIGH && saveButtonVal == saveButtonVal2)
   {
     lockRGB = !lockRGB;
@@ -108,6 +128,7 @@ void loop()
   delay(DELAY_INTERVAL);
 }
 
+// Crossfades using HSL, brightness is inversely proportional to light level
 void crossfade()
 {
   int photoCellVal = analogRead(PHOTOCELL_IN);
@@ -125,6 +146,7 @@ void crossfade()
 
   setColor(savedRGB[0], savedRGB[1], savedRGB[2]);
 
+  // If we locked RGB, don't increment hue
   if (lockRGB == false)
   {
     hue += step;
@@ -137,18 +159,102 @@ void crossfade()
 
 void rgbSelector()
 {
-  
-  long total = cs_1.capacitiveSensor(30);
+
+  long total1 = cs_1.capacitiveSensor(30);
+  long total2 = cs_2.capacitiveSensor(30);
   Serial.print("Touch: \t");
-  Serial.println(total);
+  Serial.print(total1);
+  Serial.print("\t");
+  Serial.println(total2);
 
   int sliderVal = analogRead(SLIDER_IN);
   int brightness = map(sliderVal, 0, 1023, 0, 255);
 
+  if (total1 > cs1Threshold && !lockRGB)
+  {
+    hue += step;
+    if (hue > 1.0)
+    {
+      hue = 0;
+    }
+  }
+  else if (total2 > cs2Threshold && !lockRGB)
+  {
+    hue -= step;
+    if (hue < 0)
+    {
+      hue = 1.0;
+    }
+  }
+
+  rgbConverter.hslToRgb(hue, 1, 0.5, savedRGB);
+  for (int i = 0; i <= 3; i++)
+  {
+    savedRGB[i] = savedRGB[i] - brightness;
+    if (savedRGB[i] < 10)
+    {
+      savedRGB[i] = 10;
+    }
+  }
+
+  setColor(savedRGB[0], savedRGB[1], savedRGB[2]);
 }
 
 void plantHealth()
 {
+  int moistureVal = analogRead(SOIL_IN);
+  int water = map(moistureVal, 0, 1023, 0, 255);
+  int photoCellVal = analogRead(PHOTOCELL_IN);
+  int light = map(photoCellVal, 0, 1023, 0, 255);
+  int happiness = 0;
+
+  if (water > waterMax)
+  {
+    // If we're overwatered, directly show that with blue
+    savedRGB[2] = water;
+    savedRGB[0] = 0;
+    savedRGB[1] = 0;
+  }
+  else if (water < waterMin)
+  {
+    // If we're underwatered, go red depending on how dry, plus green (to make orange) depending on light
+    savedRGB[0] = 255 - water;
+    if (light > lightMax)
+    {
+      savedRGB[1] = 150 - (light / 2);
+    }
+  }
+  else
+  { 
+    // If light and water are good, the plant is receptive to touch!
+    // Glow slightly green, intensify depending on touch levels
+    long total1 = cs_1.capacitiveSensor(30);
+    long total2 = cs_2.capacitiveSensor(30);
+    Serial.print("Touch: \t");
+    Serial.print(total1);
+    Serial.print("\t");
+    Serial.println(total2);
+    
+    savedRGB[0] = 0;
+    savedRGB[1] = 15;
+    savedRGB[2] = 0;
+
+    if(total1 > cs1Threshold) {
+      savedRGB[1] += map(total1, cs1Threshold, 6000, 0, 120);
+    }
+    if(total2 > cs2Threshold) {
+      savedRGB[1] += map(total2, cs2Threshold, 6000, 0, 120);
+    }
+  }
+
+  for (int i = 0; i <= 3; i++)
+  {
+    if (savedRGB[i] < 0)
+    {
+      savedRGB[i] = 0;
+    }
+  }
+  setColor(savedRGB[0], savedRGB[1], savedRGB[2]);
 }
 
 void setColor(int red, int green, int blue)
@@ -164,10 +270,11 @@ void setColor(int red, int green, int blue)
   analogWrite(RGB_BLUE_PIN, blue);
 }
 
-// Touch one of the leaves and then press the AUX_BUTTON to calibrate that leaf. 
+// Touch one of the leaves and then press the AUX_BUTTON to calibrate that leaf.
 // Repeat as needed! Will calibrate depending on whichever has the highest raw signal, since it seems
-// the raw value is accurate enough for that. 
-void calibrateTouch() {
+// the raw value is accurate enough for that.
+void calibrateTouch()
+{
   long total1 = cs_1.capacitiveSensor(30);
   long total2 = cs_2.capacitiveSensor(30);
   setColor(255, 255, 255);
@@ -175,14 +282,19 @@ void calibrateTouch() {
   delay(DEBOUNCE_WINDOW);
   int auxButtonVal2 = digitalRead(AUX_BUTTON);
 
-  if(auxButtonVal == HIGH && auxButtonVal == auxButtonVal2) {
-    if(total1 > total2) {
+  if (auxButtonVal == HIGH && auxButtonVal == auxButtonVal2)
+  {
+    if (total1 > total2)
+    {
       cs1Threshold = total1 / 2;
-    } else {
+    }
+    else
+    {
       cs2Threshold = total2 / 2;
     }
   }
-  if(cs1Threshold >= 50 && cs1Threshold >= 50) {
+  if (cs1Threshold >= 50 && cs1Threshold >= 50)
+  {
     setColor(0, 255, 0);
     delay(100);
     setColor(0, 0, 0);
