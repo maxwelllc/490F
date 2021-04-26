@@ -20,12 +20,16 @@ const int DELAY_INTERVAL = 30;  // ms
 
 const int MAX_RGB_VALUE = 255;
 const boolean COMMON_ANODE = false;
+const int TIME_TO_FADE = 30;
 
 float hue = 0;
 float step = 0.001f;
 RGBConverter rgbConverter;
+unsigned long lastLEDUpdateMs = 0; // Last time we updated the LED color - For breathing animation
+int fadeAmount = 5; // Amount to fade - For breathing animation 
+int currFadeBrightness = 0; // Current modifier for RGB - For breathing animation
 
-// Arbitrary thresholds for plantHealth()
+// Arbitrary thresholds for plantHealth(), on scale 0-255
 // TODO calibrate later
 const int lightMax = 200;
 const int lightMin = 50;
@@ -144,7 +148,7 @@ void crossfade()
     }
   }
 
-  setColor(savedRGB[0], savedRGB[1], savedRGB[2]);
+  setColor(savedRGB[0], savedRGB[1], savedRGB[2], false);
 
   // If we locked RGB, don't increment hue
   if (lockRGB == false)
@@ -197,7 +201,7 @@ void rgbSelector()
     }
   }
 
-  setColor(savedRGB[0], savedRGB[1], savedRGB[2]);
+  setColor(savedRGB[0], savedRGB[1], savedRGB[2], false);
 }
 
 void plantHealth()
@@ -254,17 +258,39 @@ void plantHealth()
       savedRGB[i] = 0;
     }
   }
-  setColor(savedRGB[0], savedRGB[1], savedRGB[2]);
+  setColor(savedRGB[0], savedRGB[1], savedRGB[2], true);
 }
 
-void setColor(int red, int green, int blue)
+// Setting pulse to true will fade up/down by +- 20 per value, creating a breathing effect
+void setColor(int red, int green, int blue, boolean pulse = false)
 {
+  if(pulse) {
+    unsigned long currentTime = millis();
+    if(currentTime - lastLEDUpdateMs >= TIME_TO_FADE) {
+      // If its been long enough, increment fade modifier by fadeAmount
+      currFadeBrightness += fadeAmount;
+      // If we go past min or max modifier, swap fade direction
+      if(currFadeBrightness > 20 || currFadeBrightness < -20) {
+        fadeAmount = -fadeAmount;
+      }
+    }
+    lastLEDUpdateMs = currentTime;
+  } else {
+    currFadeBrightness = 0;
+  }
+  
   if (COMMON_ANODE == true)
   {
     red = MAX_RGB_VALUE - red;
     green = MAX_RGB_VALUE - green;
     blue = MAX_RGB_VALUE - blue;
   }
+  
+  // Ensure no negative values or values over 255
+  red = min(max(0, red+currFadeBrightness), 255);
+  green = min(max(0, green+currFadeBrightness), 255);
+  blue = min(max(0, blue+currFadeBrightness), 255);
+  
   analogWrite(RGB_RED_PIN, red);
   analogWrite(RGB_GREEN_PIN, green);
   analogWrite(RGB_BLUE_PIN, blue);
@@ -277,7 +303,7 @@ void calibrateTouch()
 {
   long total1 = cs_1.capacitiveSensor(30);
   long total2 = cs_2.capacitiveSensor(30);
-  setColor(255, 255, 255);
+  setColor(255, 255, 255, false);
   long auxButtonVal = digitalRead(AUX_BUTTON);
   delay(DEBOUNCE_WINDOW);
   int auxButtonVal2 = digitalRead(AUX_BUTTON);
@@ -295,11 +321,11 @@ void calibrateTouch()
   }
   if (cs1Threshold >= 50 && cs1Threshold >= 50)
   {
-    setColor(0, 255, 0);
+    setColor(0, 255, 0, false);
     delay(100);
-    setColor(0, 0, 0);
+    setColor(0, 0, 0, false);
     delay(100);
-    setColor(0, 255, 0);
+    setColor(0, 255, 0, false);
     delay(100);
   }
 }
