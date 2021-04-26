@@ -9,31 +9,30 @@
  */
 
 
-CapacitiveSensor  cs_4_2 = CapacitiveSensor(4,2);        // 10M resistor between pins 4 & 2, pin 2 is sensor pin, add a wire and or foil if desired
+// Capacitive sensor created between pins 2 (emitter) and 12 (sensor)
+CapacitiveSensor cs_1 = CapacitiveSensor(12, 2);
+
+// Capacitive sensor created between pins 4 (emitter) and 9 (sensor)
+CapacitiveSensor cs_2 = CapacitiveSensor(4, 9);
 
 void setup()                    
 {
-   pinMode(13, OUTPUT);
    Serial.begin(9600);
 }
 
 void loop()                    
 {
     long start = millis();
-    long total1 =  cs_4_2.capacitiveSensor(30);
+    long total1 =  cs_1.capacitiveSensor(30);
+    long total2 = cs_2.capacitiveSensor(30);
 
     Serial.print(millis() - start);        // check on performance in milliseconds
     Serial.print("\t");                    // tab character for debug windown spacing
 
-    Serial.println(total1);                  // print sensor output 1
-    if(total1 > 1000) {
-      
-       int mapped = map(total1, 0, 10000, 0, 255);
-      analogWrite(13, mapped);
+    Serial.print(total1);                  // print sensor output 1
+    Serial.print("\t");
+    Serial.println(total2);
     
-    } else {
-      analogWrite(13, 0);
-    }
     
     delay(10);                             // arbitrary delay to limit data to serial port 
 }
