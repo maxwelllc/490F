@@ -118,14 +118,18 @@ void loop()
 
   if (state == 1)
   {
+    Serial.println("Crossfade mode active");
     crossfade();
   }
   else if (state == 2)
   {
+    Serial.println("rgbSelector mode active");
     rgbSelector();
   }
   else
   {
+    
+    Serial.println("Plant health mode active");
     plantHealth();
   }
 
@@ -148,6 +152,11 @@ void crossfade()
     }
   }
 
+  Serial.print(savedRGB[0]);
+  Serial.print("\t");
+  Serial.print(savedRGB[1]);
+  Serial.print("\t");
+  Serial.println(savedRGB[2]);
   setColor(savedRGB[0], savedRGB[1], savedRGB[2], false);
 
   // If we locked RGB, don't increment hue
@@ -200,7 +209,12 @@ void rgbSelector()
       savedRGB[i] = 10;
     }
   }
-
+  
+  Serial.print(savedRGB[0]);
+  Serial.print("\t");
+  Serial.print(savedRGB[1]);
+  Serial.print("\t");
+  Serial.println(savedRGB[2]);
   setColor(savedRGB[0], savedRGB[1], savedRGB[2], false);
 }
 
@@ -210,7 +224,11 @@ void plantHealth()
   int water = map(moistureVal, 0, 1023, 0, 255);
   int photoCellVal = analogRead(PHOTOCELL_IN);
   int light = map(photoCellVal, 0, 1023, 0, 255);
-  int happiness = 0;
+  
+  Serial.print("Raw moisture: \t");
+  Serial.println(moistureVal);
+  Serial.print("Raw photocell: \t");
+  Serial.println(photoCellVal);
 
   if (moistureVal < waterMoist)
   {
@@ -244,9 +262,11 @@ void plantHealth()
     savedRGB[2] = 0;
 
     if(total1 > cs1Threshold) {
+      Serial.println("Touch 1 detected!");
       savedRGB[1] += map(total1, cs1Threshold, 6000, 0, 120);
     }
     if(total2 > cs2Threshold) {
+      Serial.println("Touch 2 detected!");
       savedRGB[1] += map(total2, cs2Threshold, 6000, 0, 120);
     }
   }
@@ -310,13 +330,19 @@ void calibrateTouch()
 
   if (auxButtonVal == HIGH && auxButtonVal == auxButtonVal2)
   {
+    
+    Serial.println("Calibration:");
     if (total1 > total2)
     {
       cs1Threshold = total1 / 2;
+      Serial.print("cs1 calibrated to threshold of ");
+      Serial.println(cs1Threshold);
     }
     else
     {
       cs2Threshold = total2 / 2;
+      Serial.print("cs2 calibrated to threshold of ");
+      Serial.println(cs2Threshold);
     }
   }
   if (cs1Threshold >= 50 && cs1Threshold >= 50)
