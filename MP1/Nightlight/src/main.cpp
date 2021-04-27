@@ -29,12 +29,12 @@ unsigned long lastLEDUpdateMs = 0; // Last time we updated the LED color - For b
 int fadeAmount = 5; // Amount to fade - For breathing animation 
 int currFadeBrightness = 0; // Current modifier for RGB - For breathing animation
 
-// Arbitrary thresholds for plantHealth(), on scale 0-255
-// TODO calibrate later
-const int lightMax = 200;
-const int lightMin = 50;
-const int waterMax = 200;
-const int waterMin = 50;
+// Arbitrary thresholds for plantHealth(), on scale 0-1028
+// Note that soil moisture DECREASES as sensor value increases
+const int lightMax = 900;
+const int lightMin = 300;
+const int waterMoist = 300;
+const int waterDry = 500;
 
 byte savedRGB[3] = {0, 0, 0};
 boolean lockRGB = false;
@@ -212,14 +212,14 @@ void plantHealth()
   int light = map(photoCellVal, 0, 1023, 0, 255);
   int happiness = 0;
 
-  if (water > waterMax)
+  if (moistureVal < waterMoist)
   {
     // If we're overwatered, directly show that with blue
     savedRGB[2] = water;
     savedRGB[0] = 0;
     savedRGB[1] = 0;
   }
-  else if (water < waterMin)
+  else if (moistureVal > waterDry)
   {
     // If we're underwatered, go red depending on how dry, plus green (to make orange) depending on light
     savedRGB[0] = 255 - water;
@@ -230,7 +230,7 @@ void plantHealth()
   }
   else
   { 
-    // If light and water are good, the plant is receptive to touch!
+    // If water is good, the plant is receptive to touch!
     // Glow slightly green, intensify depending on touch levels
     long total1 = cs_1.capacitiveSensor(30);
     long total2 = cs_2.capacitiveSensor(30);
