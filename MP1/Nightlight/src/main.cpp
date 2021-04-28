@@ -56,7 +56,7 @@ int state = 1;
 void crossfade();
 void plantHealth();
 void rgbSelector();
-void setColor(int red, int green, int blue);
+void setColor(int red, int green, int blue, boolean pulse);
 void calibrateTouch();
 
 void setup()
@@ -143,7 +143,7 @@ void crossfade()
   int brightness = map(photoCellVal, 0, 1023, 0, 255);
 
   rgbConverter.hslToRgb(hue, 1, 0.5, savedRGB);
-  for (int i = 0; i <= 3; i++)
+  for (int i = 0; i <= 2; i++)
   {
     savedRGB[i] = savedRGB[i] - brightness;
     if (savedRGB[i] < 10)
@@ -201,7 +201,7 @@ void rgbSelector()
   }
 
   rgbConverter.hslToRgb(hue, 1, 0.5, savedRGB);
-  for (int i = 0; i <= 3; i++)
+  for (int i = 0; i <= 2; i++)
   {
     savedRGB[i] = savedRGB[i] - brightness;
     if (savedRGB[i] < 10)
