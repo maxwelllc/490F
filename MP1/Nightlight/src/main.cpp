@@ -2,6 +2,15 @@
 #include <CapacitiveSensor.h>
 #include <RGBConverter.h>
 
+/**
+ * Turns a plant pot into a "smart" planter, allowing for the plant to perceive and 
+ * interact with the environment around it.
+ * 
+ * 
+ * CapacitiveSensor library from https://github.com/PaulStoffregen/CapacitiveSensor  
+ * RGBConverter from https://github.com/ratkins/RGBConverter 
+ */
+
 const int RGB_RED_PIN = 3;
 const int RGB_GREEN_PIN = 5;
 const int RGB_BLUE_PIN = 6;
@@ -31,13 +40,10 @@ int currFadeBrightness = 0;        // Current modifier for RGB - For breathing a
 
 // Arbitrary thresholds for plantHealth(), on scale 0-1028
 // Note that soil moisture DECREASES as sensor value increases
-const int lightMax = 1028;
-const int lightMin = 300;
 const int waterMoist = 300;
 const int waterDry = 500;
 
 byte savedRGB[3] = {0, 0, 0};
-boolean lockRGB = false;
 
 // Capacitive sensor created between pins 2 (emitter) and 12 (sensor)
 CapacitiveSensor cs_1 = CapacitiveSensor(2, 12);
@@ -45,12 +51,14 @@ CapacitiveSensor cs_1 = CapacitiveSensor(2, 12);
 // Capacitive sensor created between pins 4 (emitter) and 9 (sensor)
 CapacitiveSensor cs_2 = CapacitiveSensor(4, 9);
 
+// When < 50, triggers calibrateTouch()
+// Calibrated to approx. value received when touching / 2
 int cs1Threshold = -1;
 int cs2Threshold = -1;
 
-// state = 1: crossfade() mode, press save button to pause the color
+// state = 1: crossfade() mode, cycles through colors
 // state = 2: rgbSelector() mode, press leaf to toggle color, use slider to adjust brightness
-// state = 3: plantHealth() mode, color and brightness will depend on moisture sensor and light
+// state = 3: plantHealth() mode, color and brightness will depend on moisture sensor
 int state = 1;
 
 void crossfade();
@@ -76,24 +84,13 @@ void setup()
 void loop()
 {
   // Need to calibrate touch on first run, the <50 check is to ensure the calibration didn't run and
-  // set an unreasonably low value
+  // set an unreasonably low value (i.e. pressed cal button without touching)
   if (cs1Threshold < 50 || cs2Threshold < 50)
   {
     calibrateTouch();
     return;
   }
 
-  /*
-  // When we are on the locked mode, light up the button for some feedback!
-  // Note that locking doesn't actually do anything in plantHealth() mode
-  if (lockRGB)
-  {
-    digitalWrite(AUX_LED, HIGH);
-  }
-  else
-  {
-    digitalWrite(AUX_LED, LOW);
-  }*/
 
   int modeButtonVal = digitalRead(MODE_SWITCH_BUTTON);
   int saveButtonVal = digitalRead(AUX_BUTTON);
@@ -110,14 +107,7 @@ void loop()
     {
       state = 1;
     }
-    delay(100);
-  }
-
-  // Toggle lock state on AUX button press
-  if (saveButtonVal == LOW && saveButtonVal == saveButtonVal2)
-  {
-    Serial.println("Save button pressed");
-    lockRGB = !lockRGB;
+    delay(100); // Unreasonably long delay because I kept hitting the button twice in the demos oops
   }
 
   if (state == 1)
@@ -141,6 +131,7 @@ void loop()
 }
 
 // Crossfades using HSL, brightness is inversely proportional to light level
+// Brightness constrained by hardcoded constants that I felt were reasonable
 void crossfade()
 {
   int photoCellVal = analogRead(PHOTOCELL_IN);
@@ -169,6 +160,8 @@ void crossfade()
   }
 }
 
+// Allows selection of hue by using the capacitive sensors to scrub forward/back
+// Brightness determined by the slider potentiometer 
 void rgbSelector()
 {
 
@@ -203,10 +196,6 @@ void rgbSelector()
   }
 
   rgbConverter.hslToRgb(hue, 1, brightness, savedRGB);
-  /*for (int i = 0; i <= 2; i++)
-  {
-    savedRGB[i] = savedRGB[i];
-  }*/
   Serial.println(hue);
   Serial.print(savedRGB[0]);
   Serial.print("\t");
@@ -216,6 +205,8 @@ void rgbSelector()
   setColor(savedRGB[0], savedRGB[1], savedRGB[2], false);
 }
 
+// In plantHealth(), the plant will go blue if overwatered, red if underwatered, and green if perfect
+// When green, touching leaves will make it pulse
 void plantHealth()
 {
   boolean pulse = false;
@@ -238,7 +229,7 @@ void plantHealth()
   }
   else if (moistureVal > waterDry)
   {
-    // If we're underwatered, go red 
+    // If we're underwatered, go red
     savedRGB[0] = 255;
     savedRGB[1] = 0;
     savedRGB[2] = 0;
@@ -282,7 +273,8 @@ void plantHealth()
   setColor(savedRGB[0], savedRGB[1], savedRGB[2], pulse);
 }
 
-// Setting pulse to true will fade up/down by +- 20 per value, creating a breathing effect
+// Setting pulse to true will fade up/down by +- 20 per value, creating a breathing effect, but will 
+// end up creeping into white/very dim colors, which I like 
 void setColor(int red, int green, int blue, boolean pulse = false)
 {
   if (pulse)
