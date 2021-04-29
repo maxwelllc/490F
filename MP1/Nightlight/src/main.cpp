@@ -16,22 +16,22 @@ const int SLIDER_IN = A0;
 const int PHOTOCELL_IN = A2;
 
 const int DEBOUNCE_WINDOW = 30; // ms
-const int DELAY_INTERVAL = 30;  // ms
+const int DELAY_INTERVAL = 50;  // ms
 
 const int MAX_RGB_VALUE = 255;
 const boolean COMMON_ANODE = false;
 const int TIME_TO_FADE = 30;
 
 float hue = 0;
-float step = 0.001f;
+float step = 0.005f;
 RGBConverter rgbConverter;
 unsigned long lastLEDUpdateMs = 0; // Last time we updated the LED color - For breathing animation
-int fadeAmount = 5; // Amount to fade - For breathing animation 
-int currFadeBrightness = 0; // Current modifier for RGB - For breathing animation
+int fadeAmount = 5;                // Amount to fade - For breathing animation
+int currFadeBrightness = 0;        // Current modifier for RGB - For breathing animation
 
 // Arbitrary thresholds for plantHealth(), on scale 0-1028
 // Note that soil moisture DECREASES as sensor value increases
-const int lightMax = 900;
+const int lightMax = 1028;
 const int lightMin = 300;
 const int waterMoist = 300;
 const int waterDry = 500;
@@ -67,9 +67,9 @@ void setup()
   pinMode(RGB_GREEN_PIN, OUTPUT);
   pinMode(RGB_BLUE_PIN, OUTPUT);
 
-  pinMode(MODE_SWITCH_BUTTON, INPUT);
+  pinMode(MODE_SWITCH_BUTTON, INPUT_PULLUP);
   pinMode(MODE_SWITCH_LED, OUTPUT);
-  pinMode(AUX_BUTTON, INPUT);
+  pinMode(AUX_BUTTON, INPUT_PULLUP);
   pinMode(AUX_LED, OUTPUT);
 }
 
@@ -83,6 +83,7 @@ void loop()
     return;
   }
 
+  /*
   // When we are on the locked mode, light up the button for some feedback!
   // Note that locking doesn't actually do anything in plantHealth() mode
   if (lockRGB)
@@ -92,7 +93,7 @@ void loop()
   else
   {
     digitalWrite(AUX_LED, LOW);
-  }
+  }*/
 
   int modeButtonVal = digitalRead(MODE_SWITCH_BUTTON);
   int saveButtonVal = digitalRead(AUX_BUTTON);
@@ -101,18 +102,21 @@ void loop()
   int saveButtonVal2 = digitalRead(AUX_BUTTON);
 
   // Increment mode on mode button press
-  if (modeButtonVal == HIGH && modeButtonVal == modeButtonVal2)
+  if (modeButtonVal == LOW && modeButtonVal == modeButtonVal2)
   {
+    Serial.println("Mode button pressed");
     state++;
     if (state > 3)
     {
       state = 1;
     }
+    delay(100);
   }
 
   // Toggle lock state on AUX button press
-  if (saveButtonVal == HIGH && saveButtonVal == saveButtonVal2)
+  if (saveButtonVal == LOW && saveButtonVal == saveButtonVal2)
   {
+    Serial.println("Save button pressed");
     lockRGB = !lockRGB;
   }
 
@@ -128,7 +132,7 @@ void loop()
   }
   else
   {
-    
+
     Serial.println("Plant health mode active");
     plantHealth();
   }
@@ -140,18 +144,17 @@ void loop()
 void crossfade()
 {
   int photoCellVal = analogRead(PHOTOCELL_IN);
-  int brightness = map(photoCellVal, 0, 1023, 0, 255);
+  photoCellVal = map(photoCellVal, 0, 1023, 1023, 0);
+  double brightness = (photoCellVal - 200) / (double)(700 - 200);
+  brightness = constrain(brightness, 0, 0.5);
+  Serial.print("Photocell in:\t");
+  Serial.println(photoCellVal);
+  Serial.print("Brigtness val:\t");
+  Serial.println(brightness);
 
-  rgbConverter.hslToRgb(hue, 1, 0.5, savedRGB);
-  for (int i = 0; i <= 2; i++)
-  {
-    savedRGB[i] = savedRGB[i] - brightness;
-    if (savedRGB[i] < 10)
-    {
-      savedRGB[i] = 10;
-    }
-  }
+  rgbConverter.hslToRgb(hue, 1, brightness, savedRGB);
 
+  Serial.println(hue);
   Serial.print(savedRGB[0]);
   Serial.print("\t");
   Serial.print(savedRGB[1]);
@@ -159,14 +162,10 @@ void crossfade()
   Serial.println(savedRGB[2]);
   setColor(savedRGB[0], savedRGB[1], savedRGB[2], false);
 
-  // If we locked RGB, don't increment hue
-  if (lockRGB == false)
+  hue += step;
+  if (hue > 1.0)
   {
-    hue += step;
-    if (hue > 1.0)
-    {
-      hue = 0;
-    }
+    hue = 0;
   }
 }
 
@@ -181,9 +180,12 @@ void rgbSelector()
   Serial.println(total2);
 
   int sliderVal = analogRead(SLIDER_IN);
-  int brightness = map(sliderVal, 0, 1023, 0, 255);
-
-  if (total1 > cs1Threshold && !lockRGB)
+  double brightness = (sliderVal - 300) / (double)(1000 - 300);
+  brightness = constrain(brightness, 0, 0.5);
+  Serial.print("Slider raw readout:\t");
+  Serial.println(sliderVal);
+  Serial.println(brightness);
+  if (total1 > cs1Threshold)
   {
     hue += step;
     if (hue > 1.0)
@@ -191,7 +193,7 @@ void rgbSelector()
       hue = 0;
     }
   }
-  else if (total2 > cs2Threshold && !lockRGB)
+  else if (total2 > cs2Threshold)
   {
     hue -= step;
     if (hue < 0)
@@ -200,16 +202,12 @@ void rgbSelector()
     }
   }
 
-  rgbConverter.hslToRgb(hue, 1, 0.5, savedRGB);
-  for (int i = 0; i <= 2; i++)
+  rgbConverter.hslToRgb(hue, 1, brightness, savedRGB);
+  /*for (int i = 0; i <= 2; i++)
   {
-    savedRGB[i] = savedRGB[i] - brightness;
-    if (savedRGB[i] < 10)
-    {
-      savedRGB[i] = 10;
-    }
-  }
-  
+    savedRGB[i] = savedRGB[i];
+  }*/
+  Serial.println(hue);
   Serial.print(savedRGB[0]);
   Serial.print("\t");
   Serial.print(savedRGB[1]);
@@ -220,11 +218,12 @@ void rgbSelector()
 
 void plantHealth()
 {
+  boolean pulse = false;
   int moistureVal = analogRead(SOIL_IN);
   int water = map(moistureVal, 0, 1023, 0, 255);
   int photoCellVal = analogRead(PHOTOCELL_IN);
   int light = map(photoCellVal, 0, 1023, 0, 255);
-  
+
   Serial.print("Raw moisture: \t");
   Serial.println(moistureVal);
   Serial.print("Raw photocell: \t");
@@ -233,21 +232,19 @@ void plantHealth()
   if (moistureVal < waterMoist)
   {
     // If we're overwatered, directly show that with blue
-    savedRGB[2] = water;
+    savedRGB[2] = 255;
     savedRGB[0] = 0;
     savedRGB[1] = 0;
   }
   else if (moistureVal > waterDry)
   {
-    // If we're underwatered, go red depending on how dry, plus green (to make orange) depending on light
-    savedRGB[0] = 255 - water;
-    if (light > lightMax)
-    {
-      savedRGB[1] = 150 - (light / 2);
-    }
+    // If we're underwatered, go red 
+    savedRGB[0] = 255;
+    savedRGB[1] = 0;
+    savedRGB[2] = 0;
   }
   else
-  { 
+  {
     // If water is good, the plant is receptive to touch!
     // Glow slightly green, intensify depending on touch levels
     long total1 = cs_1.capacitiveSensor(30);
@@ -256,18 +253,22 @@ void plantHealth()
     Serial.print(total1);
     Serial.print("\t");
     Serial.println(total2);
-    
+
     savedRGB[0] = 0;
     savedRGB[1] = 15;
     savedRGB[2] = 0;
 
-    if(total1 > cs1Threshold) {
+    if (total1 > cs1Threshold)
+    {
       Serial.println("Touch 1 detected!");
       savedRGB[1] += map(total1, cs1Threshold, 6000, 0, 120);
+      pulse = true;
     }
-    if(total2 > cs2Threshold) {
+    if (total2 > cs2Threshold)
+    {
       Serial.println("Touch 2 detected!");
       savedRGB[1] += map(total2, cs2Threshold, 6000, 0, 120);
+      pulse = true;
     }
   }
 
@@ -278,39 +279,50 @@ void plantHealth()
       savedRGB[i] = 0;
     }
   }
-  setColor(savedRGB[0], savedRGB[1], savedRGB[2], true);
+  setColor(savedRGB[0], savedRGB[1], savedRGB[2], pulse);
 }
 
 // Setting pulse to true will fade up/down by +- 20 per value, creating a breathing effect
 void setColor(int red, int green, int blue, boolean pulse = false)
 {
-  if(pulse) {
+  if (pulse)
+  {
     unsigned long currentTime = millis();
-    if(currentTime - lastLEDUpdateMs >= TIME_TO_FADE) {
+    if (currentTime - lastLEDUpdateMs >= TIME_TO_FADE)
+    {
       // If its been long enough, increment fade modifier by fadeAmount
       currFadeBrightness += fadeAmount;
       // If we go past min or max modifier, swap fade direction
-      if(currFadeBrightness > 20 || currFadeBrightness < -20) {
+      if (currFadeBrightness > 20 || currFadeBrightness < -20)
+      {
         fadeAmount = -fadeAmount;
       }
     }
     lastLEDUpdateMs = currentTime;
-  } else {
+  }
+  else
+  {
     currFadeBrightness = 0;
   }
-  
+
   if (COMMON_ANODE == true)
   {
     red = MAX_RGB_VALUE - red;
     green = MAX_RGB_VALUE - green;
     blue = MAX_RGB_VALUE - blue;
   }
-  
+
   // Ensure no negative values or values over 255
-  red = min(max(0, red+currFadeBrightness), 255);
-  green = min(max(0, green+currFadeBrightness), 255);
-  blue = min(max(0, blue+currFadeBrightness), 255);
-  
+  red = min(max(0, red + currFadeBrightness), 255);
+  green = min(max(0, green + currFadeBrightness), 255);
+  blue = min(max(0, blue + currFadeBrightness), 255);
+
+  Serial.print(red);
+  Serial.print("\t");
+  Serial.print(green);
+  Serial.print("\t");
+  Serial.println(blue);
+
   analogWrite(RGB_RED_PIN, red);
   analogWrite(RGB_GREEN_PIN, green);
   analogWrite(RGB_BLUE_PIN, blue);
@@ -321,6 +333,7 @@ void setColor(int red, int green, int blue, boolean pulse = false)
 // the raw value is accurate enough for that.
 void calibrateTouch()
 {
+  Serial.println("Awaiting calibration...");
   long total1 = cs_1.capacitiveSensor(30);
   long total2 = cs_2.capacitiveSensor(30);
   setColor(255, 255, 255, false);
@@ -328,9 +341,9 @@ void calibrateTouch()
   delay(DEBOUNCE_WINDOW);
   int auxButtonVal2 = digitalRead(AUX_BUTTON);
 
-  if (auxButtonVal == HIGH && auxButtonVal == auxButtonVal2)
+  if (auxButtonVal == LOW && auxButtonVal == auxButtonVal2)
   {
-    
+
     Serial.println("Calibration:");
     if (total1 > total2)
     {
@@ -345,7 +358,7 @@ void calibrateTouch()
       Serial.println(cs2Threshold);
     }
   }
-  if (cs1Threshold >= 50 && cs1Threshold >= 50)
+  if (cs1Threshold >= 50 && cs2Threshold >= 50)
   {
     setColor(0, 255, 0, false);
     delay(100);
@@ -354,4 +367,5 @@ void calibrateTouch()
     setColor(0, 255, 0, false);
     delay(100);
   }
+  delay(500);
 }
