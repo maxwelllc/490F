@@ -1,0 +1,14 @@
+void minigame();
+void travel();
+int convertAccelToMovement();
+void travelStatus();
+void minigameStatus();
+void calcFrameRate();
+void newGame();
+void titleScreen();
+void drawShip(int x, int y, bool isKrait);
+void spatialAnomaly();
+bool awaitInput();
+void eventText(const char *text);
+void choiceText(const char *desc, const char *lChoice1, const char *lChoice2, const char *rChoice1, const char *rChoice2);
+void thargoidEncounter();
