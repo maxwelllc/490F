@@ -18,12 +18,14 @@ Adafruit_LIS3DH lis = Adafruit_LIS3DH();
 #define OLED_RESET 4 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+// Game constants
 #define DELAY_LOOP_MS 30
 #define NUM_ASTEROIDS 10
 #define ASTEROID_SPEED 3
 #define LY_TO_COLONIA 22000
 #define FUEL_SCALE 100
 
+// Pinouts and PWM channels
 const int VIBROMOTOR_OUTPUT = 16;
 const int PIEZO_OUTPUT = 19;
 const int LEFT_BUTTON_INPUT = 21;
@@ -45,13 +47,11 @@ const int C_SCALE_OCTAVES[NUM_NOTES_IN_SCALE] = {4, 4, 4, 4, 4, 4, 4, 5};
 const char C_SCALE_CHARS[NUM_NOTES_IN_SCALE] = {'C', 'D', 'E', 'F', 'G', 'A', 'B', 'C'};
 note_t lastNote = NOTE_C;
 
-// for tracking fps
-unsigned long frameCount = 0;
-float fps = 0;
-unsigned long fpsStartTimeStamp = 0;
-
 int16_t x, y;
 uint16_t textWidth, textHeight;
+
+// Lots of text
+// Consts probably arent needed now with ESP levels of RAM, and make it a little annoying to read the code, but it's easier to leave these than move them
 const char strTitle[] = "Colonia Trail";
 const char strWelcome1[] = "The year is 3307. Colonia, a star system  22,000 lightyears from Sol, is experiencing a tritium mining boom.";
 const char strWelcome2[] = "You are an independent Commander looking to make your fortune in Colonia. Unfortunately, the trip will not be easy.";
@@ -99,15 +99,18 @@ int shipY = (SCREEN_HEIGHT - 18) / 2;
 int shipYDelta = 1;
 const int maxYDelta = 10;
 
+// Stores asteroid positions for the minigame
 Asteroid asteroids[NUM_ASTEROIDS] = {Asteroid(0, 0, 0, false), Asteroid(0, 0, 0, false), Asteroid(0, 0, 0, false), Asteroid(0, 0, 0, false),
                                      Asteroid(0, 0, 0, false), Asteroid(0, 0, 0, false), Asteroid(0, 0, 0, false), Asteroid(0, 0, 0, false),
                                      Asteroid(0, 0, 0, false), Asteroid(0, 0, 0, false)};
 int asteroidsOnScreen = 0;
 
+// Data used to calculate waypoints
 const char *waypointNames[5] = {"Amundsen Terminal", "Eagle Sector Secure Facility", "Eudaemon Anchorage", "Gagarin Gate", "Polo Harbour"};
 int waypointDistances[5] = {4481, 7006, 7692, 14317, 17589};
 bool waypointPassed[5] = {false, false, false, false, false};
 
+// Used for the hyperspace effect on the travel screen
 int hyperspaceLineX[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 int hyperspaceLineY[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 int hyperspaceLineLength[20] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -125,11 +128,12 @@ enum GameState
 };
 
 GameState state = MENU;
+
+// Points tracking is only for minigame state - End game points calculations are on credits totals
 int points = 0;
 
 void setup()
 {
-  Serial.begin(9600);
   // SSD1306_SWITCHCAPVCC = generate _display voltage from 3.3V internally
   if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3D))
   { // Address 0x3D for 128x64
@@ -142,13 +146,11 @@ void setup()
   // Init accel
   if (!lis.begin(0x18))
   { // change this to 0x19 for alternative i2c address
-    //Serial.println("Couldnt start");
     while (1)
       yield();
   }
 
   ledcSetup(VIBRO_PWM_CHANNEL, VIBRO_FREQ, VIBRO_RESOLUTION);
-
   ledcSetup(TONE_PWM_CHANNEL, VIBRO_FREQ, VIBRO_RESOLUTION);
   ledcAttachPin(VIBROMOTOR_OUTPUT, VIBRO_PWM_CHANNEL);
 
@@ -156,17 +158,14 @@ void setup()
   pinMode(RIGHT_BUTTON_INPUT, INPUT_PULLUP);
 
   // Displays title with a lil tune
-  Serial.println("Calling titlescreen from setup");
   titleScreen();
 }
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
   display.clearDisplay();
   if (state == MINIGAME)
   {
-    //Serial.println("Minigame state");
     minigameStatus();
     minigame();
   }
@@ -199,9 +198,6 @@ void loop()
   {
     victory();
   }
-  else
-  {
-  }
 
   display.display();
   piezoTone32.update();
@@ -209,6 +205,7 @@ void loop()
   delay(DELAY_LOOP_MS);
 }
 
+// Travelling between waypoints
 void travel()
 {
   if (shipHealth <= 0)
@@ -233,8 +230,10 @@ void travel()
   display.setTextSize(1);
   display.setTextColor(WHITE, BLACK);
   display.setCursor(0, 0);
+
+  // Roll the dice for a random event
   int randomEvent = random(4000);
-  if (randomEvent < 10) 
+  if (randomEvent < 10)
   {
     eventText(strAsteroidBelt);
     awaitInput(true);
@@ -298,6 +297,7 @@ void travel()
   }
 }
 
+// Docked at a station, refuel and repair
 void waypoint(int index)
 {
   nextWaypoint = index + 1;
@@ -371,6 +371,7 @@ void waypoint(int index)
   }
 }
 
+// Renders the current state
 void statusAlert()
 {
   char displayText[512];
@@ -400,6 +401,8 @@ void statusAlert()
   strcat(displayText, " credits to your name.");
   eventText(displayText);
 }
+
+// Asteroid dodging minigame
 void minigame()
 {
   if (points > 25) // End the game when passed 15 asteroids
@@ -422,11 +425,18 @@ void minigame()
 
     awaitInput(true);
   }
+
+  if (shipHealth <= 0)
+  {
+    state = GAME_OVER;
+    return;
+  }
+
   int movement = convertAccelToMovement();
   ship.setY(ship.getY() + movement);
   ship.forceInside(0, 0, display.width(), display.height() - 9);
+  // the ship object is just a hitbox and not actually drawn, we use drawShip() to draw depending on the ship loadout
   drawShip(ship.getX(), ship.getY(), ship.getIsKrait());
-  //ship.draw(display);
 
   // For each asteroid currently active, we draw it and check whether it's passed the player
   for (int i = 0; i < NUM_ASTEROIDS; i++)
@@ -485,6 +495,9 @@ void minigame()
   }
 }
 
+// Overlay a status bar on the bottom of the screen during travel
+// Lots of ugly magic numbers
+// SCREEN_HEIGHT - 17 = where to draw the line, enough room for two lines of text
 void travelStatus()
 {
   display.setTextSize(1);
@@ -508,6 +521,7 @@ void travelStatus()
   display.fillRect(20, SCREEN_HEIGHT - 16, barWidth, 8, WHITE);
 }
 
+// Draw a status bar on the asteroid game screen
 void minigameStatus()
 {
   display.setTextSize(1);
@@ -521,36 +535,22 @@ void minigameStatus()
   display.print("%");
   display.drawLine(0, SCREEN_HEIGHT - 9, SCREEN_WIDTH, SCREEN_HEIGHT - 9, WHITE);
 }
+
+// Converts raw accelerometer data to delta-Y depending on ship speed
 int convertAccelToMovement()
 {
   lis.read();
-  //Serial.print("Raw accel: ");
-  //Serial.println(lis.y);
   int rawVal = lis.y;
   int movement = map(rawVal, -7000, 7000, -1 * shipSpeed, shipSpeed);
-  //Serial.print("Mapped accel: ");
-  //Serial.println(movement);
   return movement;
 }
 
-// Ripped (almost) directly from FlappyBird.ino
-// https://github.com/makeabilitylab/arduino/blob/master/OLED/FlappyBird/FlappyBird.ino
-void calcFrameRate()
-{
-  unsigned long elapsedTime = millis() - fpsStartTimeStamp;
-  frameCount++;
-  if (elapsedTime > 1000)
-  {
-    fps = frameCount / (elapsedTime / 1000.0);
-    fpsStartTimeStamp = millis();
-    frameCount = 0;
-  }
-}
-
+// Begins a new game, including ship selection
 void newGame()
 {
 
   // Display lore primer
+  // I shouldve just put the strings in an array oops
   display.setTextSize(1);
   for (int i = SCREEN_HEIGHT; i >= 0; i--)
   {
@@ -579,8 +579,8 @@ void newGame()
     delay(50);
   }
   delay(5000);
-
   display.clearDisplay();
+
   // Choose loadout
   int16_t x, y;
   uint16_t textWidth, textHeight;
@@ -617,7 +617,7 @@ void newGame()
 
   display.display();
   bool selection = awaitInput(true);
-  if (selection == false)
+  if (selection == false) // Krait
   {
     ship.setKrait(true);
     ship.setDimensions(5, 5);
@@ -626,7 +626,7 @@ void newGame()
     credits = kraitCredits;
     fuel = 4000;
   }
-  else
+  else // Type-9 Heavy
   {
     ship.setKrait(false);
     ship.setDimensions(11, 9);
@@ -639,12 +639,13 @@ void newGame()
   state = TRAVEL;
 }
 
+// "Colonia Trail" title display
 void titleScreen()
 {
   int16_t x, y;
   uint16_t textWidth, textHeight;
 
-  int draw_width = 0; // How much of the title is revealed
+  int draw_width = 0; // Determines how much of the title is revealed
   display.setTextSize(3);
   display.setTextColor(WHITE, BLACK);
   display.getTextBounds(strTitle, 0, 0, &x, &y, &textWidth, &textHeight);
@@ -670,6 +671,7 @@ void titleScreen()
   display.clearDisplay();
 }
 
+// Draws the appropriate ship at given coords
 void drawShip(int x, int y, bool isKrait)
 {
   if (isKrait)
@@ -682,10 +684,12 @@ void drawShip(int x, int y, bool isKrait)
   }
 }
 
+// Triggers when out of fuel
 void refuel()
 {
   eventText("You've run out of fuel and are running on fumes! You don't have enough to jump out of this system.");
   awaitInput(true);
+  // Roll whether there is a scoopable star
   int roll = random(21);
   if (roll < 10)
   { // Fail
@@ -696,7 +700,7 @@ void refuel()
     choiceText("Offer a reward?", "not offer", "a reward", "promise", "1000 cr");
     bool choice = awaitInput(true);
     if (choice)
-    { // Reward offered
+    { // Reward offered for refuel
       roll = random(21);
       eventText("Just as your life support is giving out, your sensors read a new signal approaching you.");
       awaitInput(true);
@@ -775,13 +779,14 @@ void refuel()
   { // Refuel
     eventText("Thankfully, there's a scoopable star in this system. You engage your fuel scoop and approach the corona with caution.");
     awaitInput(true);
-    eventText("Gain 30t fuel, but lose 10 hull from overheating.");
-    fuel += 30 * FUEL_SCALE;
+    eventText("Gain 40t fuel, but lose 10 hull from overheating.");
+    fuel += 40 * FUEL_SCALE;
     shipHealth -= 10;
     state = TRAVEL;
   }
 }
 
+// Sensor reading event
 void spatialAnomaly()
 {
   int type = random(21);
@@ -961,6 +966,7 @@ void thargoidEncounter()
   }
 }
 
+// First game state, displays tutorial and lets you start new game
 void menu()
 {
   eventText("When you see a screenwith borders like    this, press the left or right button to proceed. Press any button now to start the game.");
@@ -968,7 +974,10 @@ void menu()
   state = NEW_GAME;
 }
 
-void victory() {
+// Not a very rewarding victory screen tbh
+// Displays points as credits + 5000 bonus for winning
+void victory()
+{
   int16_t x, y;
   uint16_t textWidth, textHeight;
 
@@ -977,16 +986,18 @@ void victory() {
   display.setCursor(SCREEN_WIDTH / 2 - textWidth / 2, SCREEN_HEIGHT / 2 - textHeight / 2);
   display.print("Welcome to Colonia!");
 
-  
   display.setTextSize(1);
   display.setCursor(0, display.getCursorY() + 16);
   display.print(credits + 5000);
   display.print("points");
   display.display();
   awaitInput(true);
-  if(credits > 3000) {
+  if (credits > 3000)
+  {
     eventText("You made it to Colonia with ample credits. You're able to outfit a powerful mining ship and strike it rich before the Tritium runs dry.");
-  } else {
+  }
+  else
+  {
     eventText("You made it to Colonia! You don't have many credits to your name, so it takes some time, but eventually, you make a living here in Colonia.");
   }
   awaitInput(true);
@@ -994,6 +1005,7 @@ void victory() {
   state = MENU;
 }
 
+// Game over, display credits as points
 void gameOver()
 {
   int16_t x, y;
@@ -1014,7 +1026,7 @@ void gameOver()
   state = MENU;
 }
 
-// text should be at most 150 characters
+// Pop-up text box, text should be at most 150 characters
 void eventText(const char *text)
 {
   display.clearDisplay();
@@ -1031,7 +1043,7 @@ void eventText(const char *text)
   display.display();
 }
 
-// Each choice line should be at most 11 characters
+// Choice text template, each choice line should be at most 11 characters
 void choiceText(const char *desc, const char *lChoice1, const char *lChoice2, const char *rChoice1, const char *rChoice2)
 {
   display.clearDisplay();
