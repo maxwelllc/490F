@@ -17,6 +17,7 @@ void menu();
 void waypoint(int index);
 void refuel();
 void statusAlert();
+void victory();
 
 class Ship : public Rectangle
 {

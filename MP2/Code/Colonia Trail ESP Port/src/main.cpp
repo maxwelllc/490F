@@ -164,7 +164,6 @@ void loop()
 {
   // put your main code here, to run repeatedly:
   display.clearDisplay();
-  //calcFrameRate();
   if (state == MINIGAME)
   {
     //Serial.println("Minigame state");
@@ -195,6 +194,10 @@ void loop()
   else if (state == REFUEL)
   {
     refuel();
+  }
+  else if (state == VICTORY)
+  {
+    victory();
   }
   else
   {
@@ -231,7 +234,7 @@ void travel()
   display.setTextColor(WHITE, BLACK);
   display.setCursor(0, 0);
   int randomEvent = random(4000);
-  if (randomEvent < 10)
+  if (randomEvent < 10) 
   {
     eventText(strAsteroidBelt);
     awaitInput(true);
@@ -517,8 +520,6 @@ void minigameStatus()
   display.print(shipHealth);
   display.print("%");
   display.drawLine(0, SCREEN_HEIGHT - 9, SCREEN_WIDTH, SCREEN_HEIGHT - 9, WHITE);
-  display.setCursor(0, 0);
-  display.print(fps);
 }
 int convertAccelToMovement()
 {
@@ -557,7 +558,7 @@ void newGame()
     display.setCursor(0, i);
     display.print(strWelcome1);
     display.display();
-    delay(50); 
+    delay(50);
   }
   delay(5000);
   for (int i = SCREEN_HEIGHT; i >= 0; i--)
@@ -566,7 +567,7 @@ void newGame()
     display.setCursor(0, i);
     display.print(strWelcome2);
     display.display();
-    delay(50); 
+    delay(50);
   }
   delay(5000);
   for (int i = SCREEN_HEIGHT; i >= 0; i--)
@@ -575,7 +576,7 @@ void newGame()
     display.setCursor(0, i);
     display.print(strWelcome3);
     display.display();
-    delay(50); 
+    delay(50);
   }
   delay(5000);
 
@@ -691,6 +692,7 @@ void refuel()
     eventText("Unfortunately, there is no fuel-scoopable star in this system. Your only option is to signal for help and hope a passing traveler saves you.");
     awaitInput(true);
     eventText("You could offer a reward to anyone who could offer you fuel, but that increases the chance that a pirate might engage.");
+    awaitInput(true);
     choiceText("Offer a reward?", "not offer", "a reward", "promise", "1000 cr");
     bool choice = awaitInput(true);
     if (choice)
@@ -731,6 +733,7 @@ void refuel()
             eventText("You transfer the credits and the pirate reluctantly sends over a fuel limpet. Thank Raxxla there's still honor in the black.");
             awaitInput(true);
             eventText("You lost 2000 credits, but gained 15 tons of fuel.");
+            awaitInput(true);
             fuel += 15 * FUEL_SCALE;
             credits -= 2000;
             state = TRAVEL;
@@ -963,6 +966,32 @@ void menu()
   eventText("When you see a screenwith borders like    this, press the left or right button to proceed. Press any button now to start the game.");
   awaitInput(true);
   state = NEW_GAME;
+}
+
+void victory() {
+  int16_t x, y;
+  uint16_t textWidth, textHeight;
+
+  display.setTextSize(2);
+  display.getTextBounds("Welcome to Colonia!", 0, 0, &x, &y, &textWidth, &textHeight);
+  display.setCursor(SCREEN_WIDTH / 2 - textWidth / 2, SCREEN_HEIGHT / 2 - textHeight / 2);
+  display.print("Welcome to Colonia!");
+
+  
+  display.setTextSize(1);
+  display.setCursor(0, display.getCursorY() + 16);
+  display.print(credits + 5000);
+  display.print("points");
+  display.display();
+  awaitInput(true);
+  if(credits > 3000) {
+    eventText("You made it to Colonia with ample credits. You're able to outfit a powerful mining ship and strike it rich before the Tritium runs dry.");
+  } else {
+    eventText("You made it to Colonia! You don't have many credits to your name, so it takes some time, but eventually, you make a living here in Colonia.");
+  }
+  awaitInput(true);
+  titleScreen();
+  state = MENU;
 }
 
 void gameOver()
