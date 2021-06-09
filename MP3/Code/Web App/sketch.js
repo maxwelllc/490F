@@ -215,13 +215,13 @@ function endGame() {
   stroke(textStroke);
   strokeWeight(2);
   if (livesRemaining <= 0) { // Lost!
-    bgColor = color(255, 0, 0);
+    bgColor = color(233, 29, 99);
     background(bgColor);
     text("YOU LOST AT LEVEL " + level + " OUT OF 10", 1920 / 2, 200);
 
   } else { // Won!
 
-    bgColor = color(0, 255, 0);
+    bgColor = color(146, 232, 127);
     background(bgColor);
     text("YOU DANCED THROUGH ALL THE LEVELS!", 1920 / 2, 200);
   }
@@ -244,13 +244,13 @@ function minigame() {
     // End round!
     if (tomatos == false) {
       shieldDirection = tomatoDirection;
-      
+
     }
-    
+
     image(video, cameraXOrigin, cameraYOrigin, cameraWidth, cameraHeight, cameraXOrigin, cameraYOrigin, cameraWidth, cameraHeight);
     score = judgeCurrentPose();
-    safe = judgeTomatoBlocking(); 
-    
+    safe = judgeTomatoBlocking();
+
     monkeyDance.stop();
     if (score > maxPointsPerPose / 2 && safe) { // Proceed normally
       correctPose();
@@ -479,7 +479,8 @@ function pause() {
  * @param {int} difficulty 
  */
 function genPose(difficulty) {
-
+  // Scaling difficulty by 2 because it didnt seem enough
+  difficulty = difficulty * 2;
   if (Math.random() < 0.5) {
     foot = 0; // Left foot on the ground
     leftHipAngle = toRadians(Math.floor(Math.random() * (30 + difficulty)));
@@ -796,8 +797,6 @@ function compareAngles(A, B, maximumPoints) {
  * @returns 
  */
 function pointsToAngle(A, B) {
-
-
   vector = createVector(B.x - A.x, B.y - A.y);
   if (toDegrees(vector.heading()) < 0) {
     return vector.heading() + toRadians(360);
